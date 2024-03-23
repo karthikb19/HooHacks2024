@@ -26,33 +26,24 @@ def index():
     if 'access_token' not in session:
         return redirect(url_for('login'))
     
-    # Get the current time in UTC
-    current_time = datetime.now(timezone.utc)
-    
-    # Get the expiration time from the session and make it timezone-aware
-    expires_at = session.get('expires_at')
-    if expires_at is not None and expires_at.tzinfo is None:
-        # If 'expires_at' is naive, make it aware by assuming it is in UTC
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    
-    # Check if the access token needs to be refreshed
-    if expires_at is not None and current_time >= expires_at:
-        refresh_access_token()
-    
-    headers = {"Authorization": f"Bearer {session['access_token']}"}
+    headers = check_refresh()
     
     # Fetch data range
     range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
     range_data = fetch_data(range_url, {}, headers)
+    s = str(range_data['egvs']['start']['systemTime']) # 2019-12-24T04:04:15
+    sPlus = s[:9] + str(int(s[9]) + 1) + s[10:]
+    
+    headers = check_refresh()
 
     egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
     egvs_query = {
-    "startDate": str(range_data['egvs']['start']['systemTime']),
-    "endDate": str(range_data['egvs']['end']['systemTime'])
+    "startDate": s,
+    "endDate": sPlus
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
 
-    return str(egvs_data)
+    return egvs_data
 
     # Fetch event data
     events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
@@ -113,7 +104,7 @@ def fetch_data(url, query, headers):
     if response.status_code == 200:
         return response.json()
     else:
-        print(f"Failed to fetch data: {response.status_code}")
+        print(f"Failed to fetch data: {response.status_code}, Details: {response.text}")
         return None
 
 def refresh_access_token():
@@ -131,6 +122,21 @@ def refresh_access_token():
         session['expires_at'] = datetime.now() + timedelta(seconds=token_info['expires_in'])
     else:
         print("Failed to refresh token")
+
+def check_refresh():
+    current_time = datetime.now(timezone.utc)
+    
+    # Get the expiration time from the session and make it timezone-aware
+    expires_at = session.get('expires_at')
+    if expires_at is not None and expires_at.tzinfo is None:
+        # If 'expires_at' is naive, make it aware by assuming it is in UTC
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    # Check if the access token needs to be refreshed
+    if expires_at is not None and current_time >= expires_at:
+        refresh_access_token()
+    
+    return {"Authorization": f"Bearer {session['access_token']}"}
 
 @app.route('/login')
 def login():
