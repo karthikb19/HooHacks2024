@@ -7,11 +7,12 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from datetime import datetime, timezone, timedelta
+import secrets
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
-CLIENT_SECRET = 'BnLfAZOnWVn2prSm'
-REDIRECT_URI = 'http://127.0.0.1:5000/callback'
+CLIENT_SECRET = 'rYww4k3RwxdYWPFo'
+REDIRECT_URI = 'http://127.0.0.1:5001/callback'
 AUTHORIZE_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/login'
 TOKEN_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/token'
 SCOPE = 'offline_access'
@@ -40,14 +41,18 @@ def index():
     
     headers = {"Authorization": f"Bearer {session['access_token']}"}
     
+    # Fetch data range
+    range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
+    range_data = fetch_data(range_url, {}, headers)
+
     egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
     egvs_query = {
-    "startDate": "2022-02-06T09:12:35",
-    "endDate": "2022-02-06T09:12:35"
+    "startDate": str(range_data['egvs']['start']['systemTime']),
+    "endDate": str(range_data['egvs']['end']['systemTime'])
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
 
-    return "Test"
+    return str(egvs_data)
 
     # Fetch event data
     events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
@@ -129,12 +134,16 @@ def refresh_access_token():
 
 @app.route('/login')
 def login():
+    state_value = secrets.token_urlsafe(16)
+    session['oauth_state'] = state_value
+
     # Constructs the URL for the Dexcom OAuth 2.0 login page and redirects the user there
     query_params = {
         'client_id': CLIENT_ID,
         'redirect_uri': REDIRECT_URI,
         'response_type': 'code',
         'scope': SCOPE,
+        'state': state_value
     }
     login_url = f"{AUTHORIZE_URL}?{urlencode(query_params)}"
     print(login_url)
@@ -166,4 +175,4 @@ def callback():
     # Make sure to store access_token, refresh_token, and expires_at in session
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
