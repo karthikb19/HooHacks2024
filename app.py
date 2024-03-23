@@ -6,7 +6,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
-import datetime
+from datetime import datetime, timezone, timedelta
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -25,8 +25,17 @@ def index():
     if 'access_token' not in session:
         return redirect(url_for('login'))
     
+    # Get the current time in UTC
+    current_time = datetime.now(timezone.utc)
+    
+    # Get the expiration time from the session and make it timezone-aware
+    expires_at = session.get('expires_at')
+    if expires_at is not None and expires_at.tzinfo is None:
+        # If 'expires_at' is naive, make it aware by assuming it is in UTC
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
     # Check if the access token needs to be refreshed
-    if datetime.datetime.now() >= session.get('expires_at'):
+    if expires_at is not None and current_time >= expires_at:
         refresh_access_token()
     
     headers = {"Authorization": f"Bearer {session['access_token']}"}
@@ -114,7 +123,7 @@ def refresh_access_token():
     if response.status_code == 200:
         token_info = response.json()
         session['access_token'] = token_info['access_token']
-        session['expires_at'] = datetime.datetime.now() + datetime.timedelta(seconds=token_info['expires_in'])
+        session['expires_at'] = datetime.now() + timedelta(seconds=token_info['expires_in'])
     else:
         print("Failed to refresh token")
 
@@ -149,7 +158,7 @@ def callback():
         access_token_info = response.json()
         session['access_token'] = access_token_info['access_token']
         session['refresh_token'] = access_token_info['refresh_token']
-        session['expires_at'] = datetime.datetime.now() + datetime.timedelta(seconds=access_token_info['expires_in'])
+        session['expires_at'] = datetime.now() + timedelta(seconds=access_token_info['expires_in'])
         return redirect(url_for('index'))
     else:
         # Failed to obtain the access token
