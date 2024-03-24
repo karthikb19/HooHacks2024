@@ -8,6 +8,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from datetime import datetime, timezone, timedelta
 import secrets
+from dateutil import parser
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -35,10 +36,12 @@ def index():
     start_date = safe_strptime(range_data['events']['start']['systemTime'])
     end_date = safe_strptime(range_data['events']['end']['systemTime'])
 
+    print(f"Start Date: {start_date}, End Date: {end_date}")
+
     egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
 
-    print(egvs_df)
-    print(events_df)
+    egvs_df.to_csv('egvs_data.csv', index=False)
+    events_df.to_csv('events_data.csv', index=False)
 
     return "finished"
 
@@ -113,6 +116,8 @@ def fetch_and_process_data(start_date, end_date, headers):
 
         # Initialize the start of the first 31-minute interval
         current_interval_start = interval_start
+        
+        mapping = {'control': 0, 'carbs': 1, 'exercise': 2}
 
         # Iterate through 31-minute intervals within the 30-day period
         while current_interval_start + timedelta(minutes=31) <= interval_end:
@@ -128,12 +133,12 @@ def fetch_and_process_data(start_date, end_date, headers):
             if overlapping_event:
                 # Interval overlaps with a valid event
                 if overlapping_event['eventType'] in ['carbs', 'exercise']:
-                    y_values = {'eventType': overlapping_event['eventType'], 'value': overlapping_event.get('value', 0)}
+                    y_values = {'eventType': mapping[overlapping_event['eventType']]}
                 else:
                     x_values = None  # Skip this interval if the event is not of interest
             else:
                 # Interval does not overlap with any event, considered as control group
-                y_values = {'eventType': 'control', 'value': 0}
+                y_values = {'eventType': mapping['control']}
 
             if x_values:  # Only include intervals with EGV data
                 x_data.append(x_values[:6])
@@ -149,7 +154,7 @@ def fetch_and_process_data(start_date, end_date, headers):
     return x_df, y_df
 
 def safe_strptime(date_string):
-    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%SZ']:
+    for fmt in ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%SZ']:
         try:
             return datetime.strptime(date_string, fmt)
         except ValueError:
