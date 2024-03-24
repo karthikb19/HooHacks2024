@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 import secrets
 from tqdm import tqdm
 from joblib import dump, load
+from sklearn.utils.class_weight import compute_class_weight
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -53,7 +54,9 @@ def predict():
     x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
     scaler = load('scaler.joblib')
     x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
-    x_values_reshaped = np.reshape(x_values_normalized, (1, len(x_values), 1))
+    x_values_reshaped = np.reshape(x_values_normalized, (1, 6, 1))
+
+    print(x_values_reshaped)
 
     model = load_model('lstm_model.h5')
     y_pred = model.predict(x_values_reshaped)
@@ -85,12 +88,23 @@ def train():
     return redirect(url_for('predict'))
 
 def ml(egvs_df, events_df):
+    # Find indices with NaN values in each dataframe
+    nan_indices_egvs = set(egvs_df[egvs_df.isna().any(axis=1)].index)
+    nan_indices_events = set(events_df[events_df.isna().any(axis=1)].index)
+
+    # Combine indices from both dataframes
+    combined_nan_indices = nan_indices_egvs.union(nan_indices_events)
+
+    # Drop the combined indices from both dataframes
+    egvs_df_cleaned = egvs_df.drop(index=combined_nan_indices)
+    events_df_cleaned = events_df.drop(index=combined_nan_indices)
+
     # Normalize the x values for better neural network performance
     scaler = MinMaxScaler()
     x_values = scaler.fit_transform(egvs_df)
 
-    # One-hot encode the y values
-    y_values = to_categorical(events_df['eventType'].values)
+    # For binary classification, we don't need to one-hot encode the y values
+    y_values = events_df['eventType'].values
 
     # Reshape the input data to be 3D [samples, timesteps, features] as required by LSTM
     x_reshaped = np.reshape(x_values, (x_values.shape[0], x_values.shape[1], 1))
@@ -101,19 +115,23 @@ def ml(egvs_df, events_df):
     # Define the LSTM model
     model = Sequential()
     model.add(LSTM(units=50, activation='relu', input_shape=(x_train.shape[1], 1)))
-    model.add(Dense(y_train.shape[1], activation='softmax'))  # Output layer with softmax for classification
+    model.add(Dense(1, activation='sigmoid'))  # Output layer with sigmoid for binary classification
 
     # Compile the model
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-    # Train the model
-    model.fit(x_train, y_train, epochs=10, validation_data=(x_test, y_test))
+    # Compute class weights
+    class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train.flatten())
+    class_weight_dict = dict(enumerate(class_weights))
+
+    # Use class weights in model training
+    model.fit(x_train, y_train, epochs=10, validation_data=(x_test, y_test), class_weight=class_weight_dict)
 
     # Evaluate the model on the test set
     loss, accuracy = model.evaluate(x_test, y_test)
     print(f"Test loss: {loss}, Test accuracy: {accuracy}")
 
-    # Save the model if needed
+    # Save the model and the scaler
     model.save('lstm_model.h5')
     dump(scaler, 'scaler.joblib')
 
