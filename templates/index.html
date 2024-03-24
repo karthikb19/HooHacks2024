@@ -20,44 +20,63 @@
         
           <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
-          <div class="chart_container" style="padding: 20px; background-color: #f9f9f9; border-radius: 10px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-              <div class="column">
-                  <h1>{{ meal }}</h1>
-              </div>
-              <div class="column">
-                  <div id="plot"></div>
-              </div>
-          </div>
-          
-          <script>
-            var trace = {
-                x: {{ x_values | tojson }},
-                y: {{ y_values | tojson }},
-                type: 'scatter',
-                mode: 'lines+markers',
-                marker: {
-                    color: 'lightblue', // Marker color
-                    size: 8
-                },
-                line: {
-                    color: 'blue', // Line color
-                    width: 2,
-                    shape: 'spline'
-                }
-            };
-          
-            var data = [trace];
-          
-            var layout = {
-                title: 'BG Over Time',
-                plot_bgcolor: '#fff',
-                paper_bgcolor: '#fff',
-                font: { color: '#000' },
-                xaxis: { title: 'Time' },
-                yaxis: { title: 'Blood Glucose (mg/dl)' },
-                margin: { t: 40 } // Adjust top margin to ensure title visibility
-            };
-          
-            Plotly.newPlot('plot', data, layout);
-          </script>
+          {% if logged_in %}
+    <a href="/logout" class="nav-link w-nav-link">Sign out</a>
+  {% else %}
+    <a href="/login" class="nav-link w-nav-link">Sign in</a>
+  {% endif %}
+</nav>
+
+{% if log %}
+    <div class="chart_container" id="chart_container" style="padding: 20px; background-color: #f9f9f9; border-radius: 10px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
+      <div class="column">
+        <h1>{{ meal }}</h1>
+      </div>
+      <div class="column">
+        <div id="plot"></div>
+      </div>
+    </div>
+    <script>
+      window.onload = function() {
+        if (document.getElementById("chart_container")) {
+          document.getElementById("chart_container").scrollIntoView({
+            behavior: "smooth"
+          });
+        }
+      };
+    </script>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+      var trace = {
+        x: {{ x_values | tojson }},
+        y: {{ y_values | tojson }},
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: {
+          color: 'lightblue', // Marker color
+          size: 8
+        },
+        line: {
+          color: 'blue', // Line color
+          width: 2,
+          shape: 'spline'
+        }
+      };
+
+      var data = [trace];
+
+      var layout = {
+        title: 'BG Over Time',
+        plot_bgcolor: '#fff',
+        paper_bgcolor: '#fff',
+        font: { color: '#000' },
+        xaxis: { title: 'Time' },
+        yaxis: { title: 'Blood Glucose (mg/dl)' },
+        margin: { t: 40 } // Adjust top margin to ensure title visibility
+      };
+
+      Plotly.newPlot('plot', data, layout);
+    </script>
+  {% endif %}
         </body></html>
