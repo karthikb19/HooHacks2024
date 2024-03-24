@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Set Basil Rate and Plot Points</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #3f2b96; /* Darker background to provide contrast for white text */
+            margin: 0;
+            padding: 20px;
+            color: #fff; /* White text for better contrast */
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: rgba(0, 0, 0, 0.7); /* Dark semi-transparent background for the container */
+            padding: 20px;
+            border-radius: 10px; /* Rounded corners for the container */
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+        h1, h2 {
+            color: #fff; /* White color for headings */
+            text-align: center;
+        }
+        form {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        label {
+            margin-right: 10px;
+            color: #fff; /* White color for better visibility */
+        }
+        input[type="number"] {
+            border: 1px solid #fff; /* White border for the input */
+            border-radius: 4px;
+            padding: 10px;
+            width: 200px;
+            background: #5c4d7d; /* Lighter purple background for input */
+            color: #fff; /* White text for readability */
+        }
+        button {
+            background-color: #5c4d7d; /* Lighter purple for the button */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin-left: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #7d6e9b; /* Even lighter purple on hover */
+        }
+        #plot {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Set Your Basil Rate</h1>
+        <form method="POST">
+            <label for="basilRate">Basal Rate:</label>
+            <input type="number" id="basilRate" name="basilRate" required>
+            <button type="submit">Submit</button>
+        </form>
+        <h2>Current Basil Rate: {{ basil_rate }}</h2>
+
+        <div id="plot"></div>
+    </div>
+    
+    <script>
+      var trace = {
+          x: {{ x_new|tojson }},
+          y: {{ y_new|tojson }},
+          type: 'scatter',
+          mode: 'lines+markers',
+          marker: {
+              color: '#a8c0ff', /* Light blue color for markers */
+              size: 8
+          },
+          line: {
+              color: '#fff', /* White color for the line */
+              width: 3,
+              shape: 'spline'
+          }
+      };
+
+      var data = [trace];
+
+      var layout = {
+          title: 'Smooth Spline Curve',
+          titlefont: {
+              color: '#fff',
+              family: 'Roboto, sans-serif',
+              size: 24
+          },
+          xaxis: {
+              title: 'X Axis',
+              titlefont: {
+                  color: '#fff',
+                  family: 'Roboto, sans-serif',
+                  size: 18
+              },
+              tickfont: {
+                  color: '#fff',
+                  family: 'Roboto, sans-serif'
+              },
+              gridcolor: '#7d6e9b', /* Lighter purple for grid lines */
+              gridwidth: 1
+          },
+          yaxis: {
+              title: 'Y Axis',
+              titlefont: {
+                  color: '#fff',
+                  family: 'Roboto, sans-serif',
+                  size: 18
+              },
+              tickfont: {
+                  color: '#fff',
+                  family: 'Roboto, sans-serif'
+              },
+              gridcolor: '#7d6e9b', /* Lighter purple for grid lines */
+              gridwidth: 1
+          },
+          plot_bgcolor: 'transparent', /* Transparent plot background */
+          paper_bgcolor: 'transparent' /* Transparent paper background */
+      };
+
+      Plotly.newPlot('plot', data, layout);
+    </script>
+</body>
+</html>
