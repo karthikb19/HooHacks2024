@@ -6,13 +6,15 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, Dropout
 from datetime import datetime, timezone, timedelta
 import secrets
 from tqdm import tqdm
 from joblib import dump, load
 from sklearn.utils.class_weight import compute_class_weight
 import pytz
+from tensorflow.keras.callbacks import EarlyStopping
+
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -51,8 +53,8 @@ def predict():
         "endDate": end_date.strftime('%Y-%m-%dT%H:%M:%S')
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
-    x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
-    graphx_values = [egv['systemTime'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
+    x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6][::-1]
+    graphx_values = [egv['systemTime'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6][::-1]
     scaler = load('scaler.joblib')
     x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
     x_values_reshaped = np.reshape(x_values_normalized, (1, 6, 1))
@@ -60,7 +62,7 @@ def predict():
     model = load_model('lstm_model.h5')
     y_pred = model.predict(x_values_reshaped)
     pred = int(round(y_pred[0][0]))
-
+    print(str(y_pred[0][0]))
     utc_zone = pytz.utc
     est_zone = pytz.timezone('US/Eastern')
     x_est = [utc_zone.localize(datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ')).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
@@ -85,12 +87,13 @@ def train():
 
     # Fetch Data
     # end_date = safe_strptime(range_data['events']['end']['systemTime'])
-    # start_date = end_date - timedelta(days=10)
+    # start_date = end_date - timedelta(days=30)
     # egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
     # egvs_df.to_csv('egvs_data.csv', index=False)
     # events_df.to_csv('events_data.csv', index=False)
 
     egvs_df, events_df = pd.read_csv('egvs_data.csv'), pd.read_csv('events_data.csv')
+
     ml(egvs_df, events_df)
 
     session["model_trained"] = True
@@ -124,6 +127,7 @@ def ml(egvs_df, events_df):
     # Define the LSTM model
     model = Sequential()
     model.add(LSTM(units=50, activation='relu', input_shape=(x_train.shape[1], 1)))
+    model.add(Dropout(0.2))
     model.add(Dense(1, activation='sigmoid'))  # Output layer with sigmoid for binary classification
 
     # Compile the model
@@ -134,7 +138,8 @@ def ml(egvs_df, events_df):
     class_weight_dict = dict(enumerate(class_weights))
 
     # Use class weights in model training
-    model.fit(x_train, y_train, epochs=10, validation_data=(x_test, y_test), class_weight=class_weight_dict)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=1, restore_best_weights=True)
+    model.fit(x_train, y_train, epochs=4, validation_data=(x_test, y_test), class_weight=class_weight_dict, callbacks=[early_stopping])
 
     # Evaluate the model on the test set
     loss, accuracy = model.evaluate(x_test, y_test)
@@ -197,7 +202,7 @@ def fetch_and_process_data(start_date, end_date, headers):
                 y_values = {'eventType': 0}
             
             interval_egvs = [egv for egv in all_egvs_data.get('records', []) if current_interval_start <= safe_strptime(egv['systemTime']) < current_interval_end]
-            x_values = [egv['value'] for egv in interval_egvs if (egv['value'] is not None) and skip]
+            x_values = [egv['value'] for egv in interval_egvs if (egv['value'] is not None) and skip][::-1]
 
             if x_values:  # Only include intervals with EGV data
                 x_data.append(x_values[:6])
