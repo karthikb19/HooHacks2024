@@ -138,7 +138,7 @@ def fetch_and_process_data(start_date, end_date, headers):
                 if overlapping_event['eventType'] == 'carbs':
                     y_values = {'eventType': 1}
                 else:
-                    skip = False # Skip this interval if the event is not of interest
+                    y_values = {'eventType': 0} # Skip this interval if the event is not of interest
             else:
                 # Interval does not overlap with any event, considered as control group
                 y_values = {'eventType': 0}
