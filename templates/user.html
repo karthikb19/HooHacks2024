@@ -52,11 +52,7 @@
     </div>
     <div class="container">
         <div class="column">
-            <h1>Meal Data</h1>
-            <h2>Meal Occurred: {{ 'Yes' if meal_occurred else 'No' }}</h2>
-            {% if meal_occurred %}
-                <h2>Amount of Insulin Required: {{ insulin_needed }}</h2>
-            {% endif %}
+            <h1>{{meal}}</h1>
         </div>
         <div class="column">
             <h1>Insulin and Meal Data Plot</h1>

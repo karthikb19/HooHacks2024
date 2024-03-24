@@ -1237,9 +1237,9 @@
             marginRight: "4px",
             width: "26px"
           });
-          var $logoText = $("<img>").attr("src", "../images/webflow-badge-text-d2.c82cec3b78.svg").attr("alt", "Made in Webflow");
-          $brand.append($logoArt, $logoText);
-          return $brand[0];
+          //var $logoText = $("<img>").attr("src", "../images/webflow-badge-text-d2.c82cec3b78.svg").attr("alt", "Made in Webflow");
+          //$brand.append($logoArt, $logoText);
+          return null;
         }
         function ensureBrand() {
           var found = $body.children(namespace);

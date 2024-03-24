@@ -27,7 +27,7 @@ app.secret_key = 'juk'  # Change this to a random secret key
 
 @app.route('/')
 def index():
-    return "Hello, World!"
+    return render_template('index.html')
 
 @app.route('/predict')
 def predict():
@@ -70,7 +70,7 @@ def predict():
     else:
         meal = "No meal was detected in the past 30 minutes. Continue monitoring blood glucose levels."
 
-    return render_template('predict.html', x=x_est, y=x_values, meal=meal)
+    return render_template('user.html', x_values=x_est, y_values=x_values, meal=meal)
 
 @app.route('/train')
 def train():
