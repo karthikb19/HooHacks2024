@@ -29,7 +29,12 @@ app.secret_key = 'juk'  # Change this to a random secret key
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', log=False, x_values=None, y_values=None, meal=None)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
 @app.route('/predict')
 def predict():
@@ -79,15 +84,13 @@ def predict():
     else:
         meal = "No meal was detected in the past 30 minutes. Continue monitoring blood glucose levels."
 
-    return render_template('user.html', x_values=x_est, y_values=x_values, meal=meal)
+    return render_template('index.html', log=True, x_values=x_est, y_values=x_values, meal=meal)
 
 @app.route('/train')
 def train():
     # Check if the user is logged in by checking the session
     if 'access_token' not in session:
         return redirect(url_for('login'))
-    
-    return redirect(url_for('predict'))
 
     headers = check_refresh()
     
@@ -416,7 +419,7 @@ def callback():
         session['access_token'] = access_token_info['access_token']
         session['refresh_token'] = access_token_info['refresh_token']
         session['expires_at'] = datetime.now() + timedelta(seconds=access_token_info['expires_in'])
-        return redirect(url_for('train'))
+        return redirect(url_for('predict'))
     else:
         # Failed to obtain the access token
         return redirect(url_for('login'))
