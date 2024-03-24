@@ -121,8 +121,6 @@ def fetch_and_process_data(start_date, end_date, headers):
 
         # Initialize the start of the first 31-minute interval
         current_interval_start = interval_start
-        
-        mapping = {'control': 0, 'carbs': 1, 'exercise': 2}
 
         # Iterate through 31-minute intervals within the 30-day period
         while current_interval_start + timedelta(minutes=31) <= interval_end:
@@ -137,13 +135,13 @@ def fetch_and_process_data(start_date, end_date, headers):
                 current_interval_start = safe_strptime(overlapping_event['systemTime'])
                 current_interval_end = min(current_interval_start + timedelta(minutes=31), interval_end)
                 # Interval overlaps with a valid event
-                if overlapping_event['eventType'] in ['carbs', 'exercise']:
-                    y_values = {'eventType': mapping[overlapping_event['eventType']]}
+                if overlapping_event['eventType'] == 'carbs':
+                    y_values = {'eventType': 1}
                 else:
                     skip = False # Skip this interval if the event is not of interest
             else:
                 # Interval does not overlap with any event, considered as control group
-                y_values = {'eventType': mapping['control']}
+                y_values = {'eventType': 0}
             
             interval_egvs = [egv for egv in all_egvs_data.get('records', []) if current_interval_start <= safe_strptime(egv['systemTime']) < current_interval_end]
             x_values = [egv['value'] for egv in interval_egvs if (egv['value'] is not None) and skip]
