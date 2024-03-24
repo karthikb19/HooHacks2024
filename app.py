@@ -8,7 +8,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from datetime import datetime, timezone, timedelta
 import secrets
-from dateutil import parser
+from tqdm import tqdm
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -23,6 +23,10 @@ app.secret_key = 'juk'  # Change this to a random secret key
 
 @app.route('/')
 def index():
+    return redirect(url_for('train'))
+
+@app.route('/train')
+def train():
     # Check if the user is logged in by checking the session
     if 'access_token' not in session:
         return redirect(url_for('login'))
@@ -33,8 +37,9 @@ def index():
     range_data = fetch_data(range_url, {}, headers)
 
     # Parse the start and end dates from the dataRange
-    start_date = safe_strptime(range_data['events']['start']['systemTime'])
+    # start_date = safe_strptime(range_data['events']['start']['systemTime'])
     end_date = safe_strptime(range_data['events']['end']['systemTime'])
+    start_date = end_date - timedelta(days=10)
 
     print(f"Start Date: {start_date}, End Date: {end_date}")
 
@@ -95,7 +100,7 @@ def fetch_and_process_data(start_date, end_date, headers):
     total_days = (end_date - start_date).days
 
     # Process data in 30-day intervals
-    for offset in range(0, total_days, 30):
+    for offset in tqdm(range(0, total_days, 30)):
         interval_start = start_date + timedelta(days=offset)
         interval_end = min(end_date, interval_start + timedelta(days=30))
 
@@ -127,18 +132,21 @@ def fetch_and_process_data(start_date, end_date, headers):
             overlapping_event = next((event for event in valid_events if current_interval_start <= safe_strptime(event['systemTime']) < current_interval_end), None)
 
             # Filter EGVs data for this interval
-            interval_egvs = [egv for egv in all_egvs_data.get('records', []) if current_interval_start <= safe_strptime(egv['systemTime']) < current_interval_end]
-            x_values = [egv['value'] for egv in interval_egvs if egv['value'] is not None]
-
+            skip = True
             if overlapping_event:
+                current_interval_start = safe_strptime(overlapping_event['systemTime'])
+                current_interval_end = min(current_interval_start + timedelta(minutes=31), interval_end)
                 # Interval overlaps with a valid event
                 if overlapping_event['eventType'] in ['carbs', 'exercise']:
                     y_values = {'eventType': mapping[overlapping_event['eventType']]}
                 else:
-                    x_values = None  # Skip this interval if the event is not of interest
+                    skip = False # Skip this interval if the event is not of interest
             else:
                 # Interval does not overlap with any event, considered as control group
                 y_values = {'eventType': mapping['control']}
+            
+            interval_egvs = [egv for egv in all_egvs_data.get('records', []) if current_interval_start <= safe_strptime(egv['systemTime']) < current_interval_end]
+            x_values = [egv['value'] for egv in interval_egvs if (egv['value'] is not None) and skip]
 
             if x_values:  # Only include intervals with EGV data
                 x_data.append(x_values[:6])
@@ -237,7 +245,7 @@ def callback():
         session['access_token'] = access_token_info['access_token']
         session['refresh_token'] = access_token_info['refresh_token']
         session['expires_at'] = datetime.now() + timedelta(seconds=access_token_info['expires_in'])
-        return redirect(url_for('index'))
+        return redirect(url_for('train'))
     else:
         # Failed to obtain the access token
         return redirect(url_for('login'))
