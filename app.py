@@ -49,13 +49,15 @@ def predict():
         "endDate": end_date.strftime('%Y-%m-%dT%H:%M:%S')
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
-    x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None]
-    x_values = np.array(x_values).reshape(1, len(x_values), 1)
+    x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
+    scaler = MinMaxScaler()
+    x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
+    x_values_reshaped = np.reshape(x_values_normalized, (1, len(x_values), 1))
 
-    model = load_model('lstm_model.keras')
-    y_pred = model.predict(x_values)
+    model = load_model('lstm_model.h5')
+    y_pred = model.predict(x_values_reshaped)
 
-    return "Prediction page"
+    return str(y_pred)
 
 @app.route('/train')
 def train():
@@ -111,7 +113,7 @@ def ml(egvs_df, events_df):
     print(f"Test loss: {loss}, Test accuracy: {accuracy}")
 
     # Save the model if needed
-    model.save('lstm_model.keras')
+    model.save('lstm_model.h5')
 
 def fetch_and_process_data(start_date, end_date, headers):
     # Prepare to store processed data
