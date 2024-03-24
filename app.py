@@ -14,7 +14,6 @@ from joblib import dump, load
 from sklearn.utils.class_weight import compute_class_weight
 import pytz
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.regularizers import l2
 
 
 # Constants for Dexcom API OAuth 2.0 authentication
