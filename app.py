@@ -19,7 +19,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
 CLIENT_SECRET = 'rYww4k3RwxdYWPFo'
-REDIRECT_URI = 'http://127.0.0.1:5001/callback'
+REDIRECT_URI = 'http://intellidose.pythonanywhere.com/callback'
 AUTHORIZE_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/login'
 TOKEN_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/token'
 SCOPE = 'offline_access'
