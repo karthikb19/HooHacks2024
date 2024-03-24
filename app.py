@@ -96,8 +96,8 @@ def ml(egvs_df, events_df):
     combined_nan_indices = nan_indices_egvs.union(nan_indices_events)
 
     # Drop the combined indices from both dataframes
-    egvs_df_cleaned = egvs_df.drop(index=combined_nan_indices)
-    events_df_cleaned = events_df.drop(index=combined_nan_indices)
+    egvs_df = egvs_df.drop(index=combined_nan_indices)
+    events_df = events_df.drop(index=combined_nan_indices)
 
     # Normalize the x values for better neural network performance
     scaler = MinMaxScaler()
