@@ -92,7 +92,7 @@ def fetch_and_process_data(start_date, end_date, headers):
     total_days = (end_date - start_date).days
 
     # Process data in 30-day intervals
-    for offset in range(0, 30, 30):
+    for offset in range(0, total_days, 30):
         interval_start = start_date + timedelta(days=offset)
         interval_end = min(end_date, interval_start + timedelta(days=30))
 
@@ -149,7 +149,7 @@ def fetch_and_process_data(start_date, end_date, headers):
     return x_df, y_df
 
 def safe_strptime(date_string):
-    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M']:
+    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%SZ']:
         try:
             return datetime.strptime(date_string, fmt)
         except ValueError:
