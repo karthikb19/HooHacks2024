@@ -65,7 +65,7 @@ def predict():
     print(str(y_pred[0][0]))
     utc_zone = pytz.utc
     est_zone = pytz.timezone('US/Eastern')
-    x_est = [utc_zone.localize(datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ')).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
+    x_est = [utc_zone.localize(safe_strptime(date)).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
 
     if pred == 1:
         meal = "A meal was detected in the past 30 minutes. An insulin dose may be required."
