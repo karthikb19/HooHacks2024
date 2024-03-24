@@ -8,22 +8,22 @@
     <style>
         body {
             font-family: 'Roboto', sans-serif;
-            background: #000; /* Black background */
+            background: #fff; /* Black background */
             color: #000; /* Black text for better contrast */
             margin: 0;
             padding: 20px;
         }
         .navbar {
-            background-color: #00695c; /* Slightly lighter green for the navbar */
+            background-color: #fff; /* Slightly lighter green for the navbar */
             overflow: hidden;
             position: fixed; /* Navbar fixed at the top */
             top: 0;
             width: 100%;
             padding: 20px 0;
-            text-align: right;
+            text-align: center;
         }
         .navbar a {
-            color: white;
+            color: black;
             padding: 14px 20px;
             text-decoration: none;
             font-size: 17px;
@@ -31,17 +31,15 @@
         .container {
             display: flex;
             justify-content: space-between; /* Arrange content in two columns */
-            color: #fff; /* Ensuring text color is white for visibility */
-            padding-top: 80px; /* Padding to ensure content is not hidden behind the navbar */
+            color: #000; /* Ensuring text color is black for visibility */
         }
         .column {
             flex: 50%; /* Adjust to control column width */
-            background: #00796b; /* Dark green background for the columns */
+            background: #fff; /* White background */
             padding: 20px;
             margin: 10px; /* Space between columns */
             border-radius: 10px; /* Rounded corners */
             box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-            color: #fff; /* Text color changed to white for better visibility */
         }
         h1, h2 {
             text-align: center;
@@ -61,7 +59,7 @@
             {% endif %}
         </div>
         <div class="column">
-            <h1>Glucose and Current Time Plot</h1>
+            <h1>Insulin and Meal Data Plot</h1>
             <div id="plot"></div>
         </div>
     </div>
@@ -73,7 +71,7 @@
           type: 'scatter',
           mode: 'lines+markers',
           marker: {
-              color: '000', // Marker color
+              color: 'lightblue', // Marker color
               size: 8
           },
           line: {
@@ -86,7 +84,7 @@
       var data = [trace];
 
       var layout = {
-          title: 'Past 30 Minutes Glucose Data ',
+          title: 'Meal and Insulin Data',
           plot_bgcolor: '#fff',
           paper_bgcolor: '#fff',
           font: { color: '#000' },
