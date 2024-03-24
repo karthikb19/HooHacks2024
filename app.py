@@ -69,6 +69,8 @@ def predict():
     est_zone = pytz.timezone('US/Eastern')
     x_est = [utc_zone.localize(safe_strptime(date)).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
 
+
+
     if pred == 1:
         scaler = load('scaler_insulin.joblib')
         model = load_model('lstm_insulin_model.h5')
@@ -79,7 +81,35 @@ def predict():
         meal = f"A meal was detected in the past 30 minutes. Our algorithm recommends an insulin dose of ~{insulin_dose} units."
 
     else:
-        meal = "No meal was detected in the past 30 minutes. Continue monitoring blood glucose levels."
+        while pred == 0:
+            end_date = start_date
+            start_date = end_date - timedelta(minutes=31)
+            egvs_query = {
+            "startDate": start_date.strftime('%Y-%m-%dT%H:%M:%S'),
+            "endDate": end_date.strftime('%Y-%m-%dT%H:%M:%S')
+            }
+            egvs_data = fetch_data(egvs_url, egvs_query, headers)
+            x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6][::-1]
+            graphx_values = [egv['systemTime'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6][::-1]
+            scaler = load('scaler.joblib')
+            x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
+            x_values_reshaped = np.reshape(x_values_normalized, (1, 6, 1))
+
+            model = load_model('lstm_model.h5')
+            y_pred = model.predict(x_values_reshaped)
+            pred = int(round(y_pred[0][0]))
+            print(str(y_pred[0][0]))
+            utc_zone = pytz.utc
+            est_zone = pytz.timezone('US/Eastern')
+            x_est = [utc_zone.localize(safe_strptime(date)).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
+
+        scaler = load('scaler_insulin.joblib')
+        model = load_model('lstm_insulin_model.h5')
+        x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
+        x_values_reshaped = x_values_normalized.reshape((1, 6, 1))
+        y_pred = model.predict(x_values_reshaped)
+        insulin_dose = round(float(y_pred[0][0]), 1)
+        meal = "No meal was detected in the past 30 minutes. Your last meal was detected at " + x_est[0] + ". Our algorithm recommended an insulin dose of ~" + str(insulin_dose) + " units."
 
     return render_template('index.html', log=True, x_values=x_est, y_values=x_values, meal=meal)
 
