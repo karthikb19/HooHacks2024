@@ -19,7 +19,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
 CLIENT_SECRET = 'rYww4k3RwxdYWPFo'
-REDIRECT_URI = 'http://intellidose.pythonanywhere.com/callback'
+REDIRECT_URI = 'http://127.0.0.1:5001/callback'
 AUTHORIZE_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/login'
 TOKEN_URL = 'https://sandbox-api.dexcom.com/v2/oauth2/token'
 SCOPE = 'offline_access'
@@ -41,9 +41,6 @@ def predict():
     # Check if the user is logged in by checking the session
     if 'access_token' not in session:
         return redirect(url_for('login'))
-    
-    if 'model_trained' not in session:
-        return redirect(url_for('train'))
     
     headers = check_refresh()
     
