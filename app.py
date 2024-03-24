@@ -11,6 +11,7 @@ from tensorflow.keras.utils import to_categorical
 from datetime import datetime, timezone, timedelta
 import secrets
 from tqdm import tqdm
+from joblib import dump, load
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -50,7 +51,7 @@ def predict():
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
     x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
-    scaler = MinMaxScaler()
+    scaler = load('scaler.joblib')
     x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
     x_values_reshaped = np.reshape(x_values_normalized, (1, len(x_values), 1))
 
@@ -114,6 +115,7 @@ def ml(egvs_df, events_df):
 
     # Save the model if needed
     model.save('lstm_model.h5')
+    dump(scaler, 'scaler.joblib')
 
 def fetch_and_process_data(start_date, end_date, headers):
     # Prepare to store processed data
