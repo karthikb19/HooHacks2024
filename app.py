@@ -69,7 +69,14 @@ def predict():
     x_est = [utc_zone.localize(safe_strptime(date)).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
 
     if pred == 1:
-        meal = "A meal was detected in the past 30 minutes. An insulin dose may be required."
+        scaler = load('scaler_insulin.joblib')
+        model = load_model('lstm_insulin_model.h5')
+        x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
+        x_values_reshaped = x_values_normalized.reshape((1, 6, 1))
+        y_pred = model.predict(x_values_reshaped)
+        insulin_dose = round(float(y_pred[0][0]), 1)
+        meal = f"A meal was detected in the past 30 minutes. Our algorithm recommends an insulin dose of ~{insulin_dose} units."
+
     else:
         meal = "No meal was detected in the past 30 minutes. Continue monitoring blood glucose levels."
 
