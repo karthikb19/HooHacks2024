@@ -28,36 +28,19 @@ def index():
     
     headers = check_refresh()
     
-    # Fetch data range
     range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
     range_data = fetch_data(range_url, {}, headers)
-    s = str(range_data['events']['start']['systemTime']) # 2019-12-24T04:04:15
-    sPlus = s[:9] + str(int(s[9]) + 1) + s[10:]
 
-    # Fetch event data
-    events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
-    events_query = {
-    "startDate": s,
-    "endDate": sPlus
-    }
-    events_data = fetch_data(events_url, events_query, headers)
-    egvs_data = []
-    egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
-    for event in events_data['records']:
-        system_time = datetime.strptime(event['systemTime'], '%Y-%m-%dT%H:%M:%S')
-        egvs_query = {
-        "startDate": system_time - timedelta(minutes=30),
-        "endDate": system_time
-        }
-        egvs_data.append(fetch_data(egvs_url, egvs_query, headers))
+    # Parse the start and end dates from the dataRange
+    start_date = safe_strptime(range_data['events']['start']['systemTime'])
+    end_date = safe_strptime(range_data['events']['end']['systemTime'])
 
+    egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
 
-    return events_data, egvs_data
+    print(egvs_df)
+    print(events_df)
 
-    # Assuming the fetched data is stored in egvs_data and events_data variables
-    # Convert the data to pandas DataFrame for easier manipulation
-    egvs_df = pd.DataFrame(egvs_data['records'])
-    events_df = pd.DataFrame(events_data['records'])
+    return "finished"
 
     # Example preprocessing steps
     # For simplicity, let's focus on 'value' from egvs and 'eventType' from events
@@ -68,7 +51,7 @@ def index():
     egvs_df['normalized_value'] = scaler.fit_transform(egvs_df[['value']])
 
     # Map 'eventType' to numerical values in events_df
-    event_type_mapping = {'carbs': 0, 'shortActing': 1, 'longActing': 2, 'exercise': 3}
+    event_type_mapping = {'carbs': 0, 'insulin': 1, 'exercise': 2}
     events_df['event_type_numeric'] = events_df['eventType'].map(event_type_mapping)
 
     # For this example, let's assume we're simplifying the problem to predict the next glucose value
@@ -99,6 +82,80 @@ def index():
     model.fit(X_reshaped, y, epochs=200, verbose=1)
     
     return 'Data fetched and processed successfully'
+
+def fetch_and_process_data(start_date, end_date, headers):
+    # Prepare to store processed data
+    x_data = []
+    y_data = []
+
+    # Calculate the total number of days to process
+    total_days = (end_date - start_date).days
+
+    # Process data in 30-day intervals
+    for offset in range(0, 30, 30):
+        interval_start = start_date + timedelta(days=offset)
+        interval_end = min(end_date, interval_start + timedelta(days=30))
+
+        # Fetch all EGVs data for the current 30-day interval
+        egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
+        egvs_query = {
+            "startDate": interval_start.strftime('%Y-%m-%dT%H:%M:%S'),
+            "endDate": interval_end.strftime('%Y-%m-%dT%H:%M:%S')
+        }
+        all_egvs_data = fetch_data(egvs_url, egvs_query, headers)
+
+        # Fetch all event data for the current 30-day interval
+        events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
+        events_data = fetch_data(events_url, egvs_query, headers)  # Reuse egvs_query for dates
+
+        # Filter events based on status
+        valid_events = [event for event in events_data.get('records', []) if event.get('eventStatus') == 'created']
+
+        # Initialize the start of the first 31-minute interval
+        current_interval_start = interval_start
+
+        # Iterate through 31-minute intervals within the 30-day period
+        while current_interval_start + timedelta(minutes=31) <= interval_end:
+            current_interval_end = current_interval_start + timedelta(minutes=31)
+
+            # Check if the interval overlaps with any valid event
+            overlapping_event = next((event for event in valid_events if current_interval_start <= safe_strptime(event['systemTime']) < current_interval_end), None)
+
+            # Filter EGVs data for this interval
+            interval_egvs = [egv for egv in all_egvs_data.get('records', []) if current_interval_start <= safe_strptime(egv['systemTime']) < current_interval_end]
+            x_values = [egv['value'] for egv in interval_egvs if egv['value'] is not None]
+
+            if overlapping_event:
+                # Interval overlaps with a valid event
+                if overlapping_event['eventType'] in ['carbs', 'exercise']:
+                    y_values = {'eventType': overlapping_event['eventType'], 'value': overlapping_event.get('value', 0)}
+                else:
+                    x_values = None  # Skip this interval if the event is not of interest
+            else:
+                # Interval does not overlap with any event, considered as control group
+                y_values = {'eventType': 'control', 'value': 0}
+
+            if x_values:  # Only include intervals with EGV data
+                x_data.append(x_values[:6])
+                y_data.append(y_values)
+
+            # Move to the next interval
+            current_interval_start = current_interval_end
+
+    # Convert the lists to pandas DataFrames
+    x_df = pd.DataFrame(x_data)
+    y_df = pd.DataFrame(y_data)
+
+    return x_df, y_df
+
+def safe_strptime(date_string):
+    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M']:
+        try:
+            return datetime.strptime(date_string, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"time data '{date_string}' does not match any format")
+
 
 def fetch_data(url, query, headers):
     response = requests.get(url, headers=headers, params=query)
