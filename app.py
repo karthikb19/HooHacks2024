@@ -31,27 +31,28 @@ def index():
     # Fetch data range
     range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
     range_data = fetch_data(range_url, {}, headers)
-    s = str(range_data['egvs']['start']['systemTime']) # 2019-12-24T04:04:15
+    s = str(range_data['events']['start']['systemTime']) # 2019-12-24T04:04:15
     sPlus = s[:9] + str(int(s[9]) + 1) + s[10:]
-    
-    headers = check_refresh()
-
-    egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
-    egvs_query = {
-    "startDate": s,
-    "endDate": sPlus
-    }
-    egvs_data = fetch_data(egvs_url, egvs_query, headers)
-
-    return egvs_data
 
     # Fetch event data
     events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
     events_query = {
-    "startDate": "2023-01-01T09:12:35",
-    "endDate": "2023-01-01T09:12:35"
+    "startDate": s,
+    "endDate": sPlus
     }
     events_data = fetch_data(events_url, events_query, headers)
+    egvs_data = []
+    egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
+    for event in events_data['records']:
+        system_time = datetime.strptime(event['systemTime'], '%Y-%m-%dT%H:%M:%S')
+        egvs_query = {
+        "startDate": system_time - timedelta(minutes=30),
+        "endDate": system_time
+        }
+        egvs_data.append(fetch_data(egvs_url, egvs_query, headers))
+
+
+    return events_data, egvs_data
 
     # Assuming the fetched data is stored in egvs_data and events_data variables
     # Convert the data to pandas DataFrame for easier manipulation
