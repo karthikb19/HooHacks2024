@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Meal and Insulin Tracker with Spline Plot</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #000; /* Black background */
+            color: #000; /* Black text for better contrast */
+            margin: 0;
+            padding: 20px;
+        }
+        .navbar {
+            background-color: #00695c; /* Slightly lighter green for the navbar */
+            overflow: hidden;
+            position: fixed; /* Navbar fixed at the top */
+            top: 0;
+            width: 100%;
+            padding: 20px 0;
+            text-align: right;
+        }
+        .navbar a {
+            color: white;
+            padding: 14px 20px;
+            text-decoration: none;
+            font-size: 17px;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between; /* Arrange content in two columns */
+            color: #fff; /* Ensuring text color is white for visibility */
+            padding-top: 80px; /* Padding to ensure content is not hidden behind the navbar */
+        }
+        .column {
+            flex: 50%; /* Adjust to control column width */
+            background: #00796b; /* Dark green background for the columns */
+            padding: 20px;
+            margin: 10px; /* Space between columns */
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            color: #fff; /* Text color changed to white for better visibility */
+        }
+        h1, h2 {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="/">Home</a>
+    </div>
+    <div class="container">
+        <div class="column">
+            <h1>Meal Data</h1>
+            <h2>Meal Occurred: {{ 'Yes' if meal_occurred else 'No' }}</h2>
+            {% if meal_occurred %}
+                <h2>Amount of Insulin Required: {{ insulin_needed }}</h2>
+            {% endif %}
+        </div>
+        <div class="column">
+            <h1>Glucose and Current Time Plot</h1>
+            <div id="plot"></div>
+        </div>
+    </div>
+    
+    <script>
+      var trace = {
+          x: {{ x_values | tojson }},
+          y: {{ y_values | tojson }},
+          type: 'scatter',
+          mode: 'lines+markers',
+          marker: {
+              color: '000', // Marker color
+              size: 8
+          },
+          line: {
+              color: 'blue', // Line color
+              width: 2,
+              shape: 'spline'
+          }
+      };
+
+      var data = [trace];
+
+      var layout = {
+          title: 'Past 30 Minutes Glucose Data ',
+          plot_bgcolor: '#fff',
+          paper_bgcolor: '#fff',
+          font: { color: '#000' },
+          xaxis: { title: 'Time' },
+          yaxis: { title: 'Data' },
+          margin: { t: 40 } // Adjust top margin to ensure title visibility
+      };
+
+      Plotly.newPlot('plot', data, layout);
+    </script>
+</body>
+</html>
