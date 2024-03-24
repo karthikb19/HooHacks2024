@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, jsonify, make_response, session, url_for
+from flask import Flask, redirect, request, session, url_for, render_template
 import requests
 from urllib.parse import urlencode
 import pandas as pd
@@ -7,12 +7,12 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
-from tensorflow.keras.utils import to_categorical
 from datetime import datetime, timezone, timedelta
 import secrets
 from tqdm import tqdm
 from joblib import dump, load
 from sklearn.utils.class_weight import compute_class_weight
+import pytz
 
 # Constants for Dexcom API OAuth 2.0 authentication
 CLIENT_ID = 'Xv8e7QwMcm3jBHztPipV6tMEP6QFH4Zt'
@@ -52,16 +52,25 @@ def predict():
     }
     egvs_data = fetch_data(egvs_url, egvs_query, headers)
     x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
+    graphx_values = [egv['systemTime'] for egv in egvs_data.get('records', []) if egv['value'] is not None][:6]
     scaler = load('scaler.joblib')
     x_values_normalized = scaler.transform(np.array(x_values).reshape(1, -1))
     x_values_reshaped = np.reshape(x_values_normalized, (1, 6, 1))
 
-    print(x_values_reshaped)
-
     model = load_model('lstm_model.h5')
     y_pred = model.predict(x_values_reshaped)
+    pred = int(round(y_pred[0][0]))
 
-    return str(y_pred)
+    utc_zone = pytz.utc
+    est_zone = pytz.timezone('US/Eastern')
+    x_est = [utc_zone.localize(datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ')).astimezone(est_zone).strftime('%H:%M') for date in graphx_values]
+
+    if pred == 1:
+        meal = "A meal was detected in the past 30 minutes. An insulin dose may be required."
+    else:
+        meal = "No meal was detected in the past 30 minutes. Continue monitoring blood glucose levels."
+
+    return render_template('predict.html', x=x_est, y=x_values, meal=meal)
 
 @app.route('/train')
 def train():
