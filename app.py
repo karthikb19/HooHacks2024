@@ -4,8 +4,10 @@ from urllib.parse import urlencode
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.utils import to_categorical
 from datetime import datetime, timezone, timedelta
 import secrets
 from tqdm import tqdm
@@ -43,53 +45,44 @@ def train():
 
     print(f"Start Date: {start_date}, End Date: {end_date}")
 
-    egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
+    # egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
+    # egvs_df.to_csv('egvs_data.csv', index=False)
+    # events_df.to_csv('events_data.csv', index=False)
 
-    egvs_df.to_csv('egvs_data.csv', index=False)
-    events_df.to_csv('events_data.csv', index=False)
+    egvs_df, events_df = pd.read_csv('egvs_data.csv'), pd.read_csv('events_data.csv')
+    ml(egvs_df, events_df)
 
-    return "finished"
+def ml(egvs_df, events_df):
+    # Normalize the x values for better neural network performance
+    scaler = MinMaxScaler()
+    x_values = scaler.fit_transform(egvs_df)
 
-    # Example preprocessing steps
-    # For simplicity, let's focus on 'value' from egvs and 'eventType' from events
-    # More sophisticated feature engineering is required for a real-world application
+    # One-hot encode the y values
+    y_values = to_categorical(events_df['eventType'].values)
 
-    # Normalize the 'value' column in egvs_df
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    egvs_df['normalized_value'] = scaler.fit_transform(egvs_df[['value']])
+    # Reshape the input data to be 3D [samples, timesteps, features] as required by LSTM
+    x_reshaped = np.reshape(x_values, (x_values.shape[0], x_values.shape[1], 1))
 
-    # Map 'eventType' to numerical values in events_df
-    event_type_mapping = {'carbs': 0, 'insulin': 1, 'exercise': 2}
-    events_df['event_type_numeric'] = events_df['eventType'].map(event_type_mapping)
-
-    # For this example, let's assume we're simplifying the problem to predict the next glucose value
-    # based on the previous N values. A more complex model would also incorporate event data.
-
-    # Function to create sequences for LSTM
-    def create_sequences(data, n_steps):
-        X, y = [], []
-        for i in range(len(data) - n_steps):
-            X.append(data[i:i+n_steps])
-            y.append(data[i+n_steps])
-        return np.array(X), np.array(y)
-
-    # Create sequences
-    n_steps = 3  # Number of timesteps per sequence
-    X, y = create_sequences(egvs_df['normalized_value'].values, n_steps)
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x_reshaped, y_values, test_size=0.2, random_state=42)
 
     # Define the LSTM model
     model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(n_steps, 1)))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
+    model.add(LSTM(units=50, activation='relu', input_shape=(x_train.shape[1], 1)))
+    model.add(Dense(y_train.shape[1], activation='softmax'))  # Output layer with softmax for classification
 
-    # Reshape X to fit the LSTM model
-    X_reshaped = X.reshape((X.shape[0], X.shape[1], 1))
+    # Compile the model
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model
-    model.fit(X_reshaped, y, epochs=200, verbose=1)
-    
-    return 'Data fetched and processed successfully'
+    model.fit(x_train, y_train, epochs=10, validation_data=(x_test, y_test))
+
+    # Evaluate the model on the test set
+    loss, accuracy = model.evaluate(x_test, y_test)
+    print(f"Test loss: {loss}, Test accuracy: {accuracy}")
+
+    # Save the model if needed
+    model.save('lstm_model.h5')
 
 def fetch_and_process_data(start_date, end_date, headers):
     # Prepare to store processed data
