@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.utils import to_categorical
 from datetime import datetime, timezone, timedelta
@@ -25,7 +25,37 @@ app.secret_key = 'juk'  # Change this to a random secret key
 
 @app.route('/')
 def index():
-    return redirect(url_for('train'))
+    return "Hello, World!"
+
+@app.route('/predict')
+def predict():
+    # Check if the user is logged in by checking the session
+    if 'access_token' not in session:
+        return redirect(url_for('login'))
+    
+    if 'model_trained' not in session:
+        return redirect(url_for('train'))
+    
+    headers = check_refresh()
+    
+    range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
+    range_data = fetch_data(range_url, {}, headers)
+    end_date = safe_strptime(range_data['events']['end']['systemTime'])
+    start_date = end_date - timedelta(minutes=31)
+
+    egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
+    egvs_query = {
+        "startDate": start_date.strftime('%Y-%m-%dT%H:%M:%S'),
+        "endDate": end_date.strftime('%Y-%m-%dT%H:%M:%S')
+    }
+    egvs_data = fetch_data(egvs_url, egvs_query, headers)
+    x_values = [egv['value'] for egv in egvs_data.get('records', []) if egv['value'] is not None]
+    x_values = np.array(x_values).reshape(1, len(x_values), 1)
+
+    model = load_model('lstm_model.keras')
+    y_pred = model.predict(x_values)
+
+    return "Prediction page"
 
 @app.route('/train')
 def train():
@@ -38,19 +68,18 @@ def train():
     range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
     range_data = fetch_data(range_url, {}, headers)
 
-    # Parse the start and end dates from the dataRange
-    # start_date = safe_strptime(range_data['events']['start']['systemTime'])
-    end_date = safe_strptime(range_data['events']['end']['systemTime'])
-    start_date = end_date - timedelta(days=10)
-
-    print(f"Start Date: {start_date}, End Date: {end_date}")
-
+    # Fetch Data
+    # end_date = safe_strptime(range_data['events']['end']['systemTime'])
+    # start_date = end_date - timedelta(days=10)
     # egvs_df, events_df = fetch_and_process_data(start_date, end_date, headers)
     # egvs_df.to_csv('egvs_data.csv', index=False)
     # events_df.to_csv('events_data.csv', index=False)
 
     egvs_df, events_df = pd.read_csv('egvs_data.csv'), pd.read_csv('events_data.csv')
     ml(egvs_df, events_df)
+
+    session["model_trained"] = True
+    return redirect(url_for('predict'))
 
 def ml(egvs_df, events_df):
     # Normalize the x values for better neural network performance
@@ -82,7 +111,7 @@ def ml(egvs_df, events_df):
     print(f"Test loss: {loss}, Test accuracy: {accuracy}")
 
     # Save the model if needed
-    model.save('lstm_model.h5')
+    model.save('lstm_model.keras')
 
 def fetch_and_process_data(start_date, end_date, headers):
     # Prepare to store processed data
