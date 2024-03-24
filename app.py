@@ -88,6 +88,8 @@ def train():
     if 'access_token' not in session:
         return redirect(url_for('login'))
     
+    return redirect(url_for('predict'))
+
     headers = check_refresh()
     
     range_url = "https://sandbox-api.dexcom.com/v3/users/self/dataRange"
@@ -105,7 +107,7 @@ def train():
 
     # Fetch Insulin Data
     # end_date = safe_strptime(range_data['events']['end']['systemTime'])
-    # start_date = end_date - timedelta(days=30)
+    # start_date = end_date - timedelta(days=90)
     # insulin_egvs_df, insulin_events_df = fetch_and_process_insulin_data(start_date, end_date, headers)
     # insulin_egvs_df.to_csv('insulin_egvs_data.csv', index=False)
     # insulin_events_df.to_csv('insulin_events_data.csv', index=False)
@@ -290,6 +292,7 @@ def fetch_and_process_insulin_data(start_date, end_date, headers):
     return x_df, y_df
 
 def insulin_ml(egvs_df, events_df):
+    events_df['value'] = pd.to_numeric(events_df['value'], errors='coerce')
     # Find indices with NaN values in each dataframe
     nan_indices_egvs = set(egvs_df[egvs_df.isna().any(axis=1)].index)
     nan_indices_events = set(events_df[events_df.isna().any(axis=1)].index)
