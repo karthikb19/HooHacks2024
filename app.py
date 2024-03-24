@@ -14,6 +14,7 @@ from joblib import dump, load
 from sklearn.utils.class_weight import compute_class_weight
 import pytz
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import l2
 
 
 # Constants for Dexcom API OAuth 2.0 authentication
@@ -93,9 +94,18 @@ def train():
     # events_df.to_csv('events_data.csv', index=False)
 
     egvs_df, events_df = pd.read_csv('egvs_data.csv'), pd.read_csv('events_data.csv')
-
     ml(egvs_df, events_df)
 
+    # Fetch Insulin Data
+    # end_date = safe_strptime(range_data['events']['end']['systemTime'])
+    # start_date = end_date - timedelta(days=30)
+    # insulin_egvs_df, insulin_events_df = fetch_and_process_insulin_data(start_date, end_date, headers)
+    # insulin_egvs_df.to_csv('insulin_egvs_data.csv', index=False)
+    # insulin_events_df.to_csv('insulin_events_data.csv', index=False)
+
+    insulin_egvs_df, insulin_events_df = pd.read_csv('insulin_egvs_data.csv'), pd.read_csv('insulin_events_data.csv')
+    insulin_ml(insulin_egvs_df, insulin_events_df)
+    
     session["model_trained"] = True
     return redirect(url_for('predict'))
 
@@ -122,7 +132,7 @@ def ml(egvs_df, events_df):
     x_reshaped = np.reshape(x_values, (x_values.shape[0], x_values.shape[1], 1))
 
     # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(x_reshaped, y_values, test_size=0.2, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(x_reshaped, y_values, test_size=0.2)
 
     # Define the LSTM model
     model = Sequential()
@@ -205,9 +215,13 @@ def fetch_and_process_data(start_date, end_date, headers):
             x_values = [egv['value'] for egv in interval_egvs if (egv['value'] is not None) and skip][::-1]
 
             if x_values:  # Only include intervals with EGV data
+                while len(x_values) < 6:
+                    x_values.append(np.nan)
                 x_data.append(x_values[:6])
                 y_data.append(y_values)
-
+            
+            while len(x_values) < 6:
+                    x_values.append(np.nan)
             # Move to the next interval
             current_interval_start = current_interval_end
 
@@ -216,6 +230,98 @@ def fetch_and_process_data(start_date, end_date, headers):
     y_df = pd.DataFrame(y_data)
 
     return x_df, y_df
+
+def fetch_and_process_insulin_data(start_date, end_date, headers):
+    # Prepare to store processed data
+    x_data = []
+    y_data = []
+
+    # Calculate the total number of days to process
+    total_days = (end_date - start_date).days
+
+    # Process data in 30-day intervals
+    for offset in tqdm(range(0, total_days, 30)):
+        interval_start = start_date + timedelta(days=offset)
+        interval_end = min(end_date, interval_start + timedelta(days=30))
+
+        # Fetch all EGVs data for the current 30-day interval
+        egvs_url = "https://sandbox-api.dexcom.com/v3/users/self/egvs"
+        egvs_query = {
+            "startDate": interval_start.strftime('%Y-%m-%dT%H:%M:%S'),
+            "endDate": interval_end.strftime('%Y-%m-%dT%H:%M:%S')
+        }
+        all_egvs_data = fetch_data(egvs_url, egvs_query, headers)
+
+        # Fetch all event data for the current 30-day interval
+        events_url = "https://sandbox-api.dexcom.com/v3/users/self/events"
+        events_data = fetch_data(events_url, egvs_query, headers)  # Reuse egvs_query for dates
+
+        # Filter events based on status
+        valid_events = [event for event in events_data.get('records', []) if event.get('eventStatus') == 'created' and event.get('eventType') == 'insulin' and event.get('eventSubType') == 'fastActing']
+
+        for event in valid_events:
+            event_time = safe_strptime(event['systemTime'])
+            start_time = event_time - timedelta(minutes=31)
+            
+            # Filter EGVs data for the 31-minute interval before the event
+            interval_egvs = [egv for egv in all_egvs_data.get('records', []) if start_time <= safe_strptime(egv['systemTime']) < event_time]
+            if interval_egvs:
+                y_value = event['value']
+                x_values = [egv['value'] for egv in interval_egvs if egv['value'] is not None][::-1]
+                
+                while len(x_values) < 6:
+                    x_values.append(np.nan)
+                
+                x_data.append(x_values[:6])  # Ensure only the first 6 values are used
+                y_data.append(y_value)
+                print(x_values[:6], y_value)
+
+    # Convert the lists to pandas DataFrames
+    x_df = pd.DataFrame(x_data)
+    y_df = pd.DataFrame(y_data, columns=['value'])
+
+    return x_df, y_df
+
+def insulin_ml(egvs_df, events_df):
+    # Find indices with NaN values in each dataframe
+    nan_indices_egvs = set(egvs_df[egvs_df.isna().any(axis=1)].index)
+    nan_indices_events = set(events_df[events_df.isna().any(axis=1)].index)
+
+    # Combine indices from both dataframes
+    combined_nan_indices = nan_indices_egvs.union(nan_indices_events)
+
+    # Drop the combined indices from both dataframes
+    egvs_df = egvs_df.drop(index=combined_nan_indices)
+    events_df = events_df.drop(index=combined_nan_indices)
+
+    # Normalize the x values for better neural network performance
+    scaler = MinMaxScaler()
+    X_scaled = scaler.fit_transform(egvs_df)
+
+    # Reshape the input to be 3D [samples, timesteps, features] for LSTM
+    X_reshaped = X_scaled.reshape((X_scaled.shape[0], X_scaled.shape[1], 1))
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(X_reshaped, events_df["value"].values, test_size=0.2)
+
+    # Define the LSTM model for regression
+    model = Sequential()
+    model.add(LSTM(units=50, activation='relu', input_shape=(x_train.shape[1], 1)))
+    model.add(Dropout(0.2))
+    model.add(Dense(1))  # Output layer for regression
+
+    # Compile the model for regression
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    # Use early stopping in model training
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    model.fit(x_train, y_train, epochs=200, validation_split=0.2, callbacks=[early_stopping], batch_size=1)
+
+    # Evaluate the model on the test set
+    loss = model.evaluate(x_test, y_test)
+    print(f"Loss: {loss}")
+
+    # Save the model and the scaler
+    model.save('lstm_insulin_model.h5')
+    dump(scaler, 'scaler_insulin.joblib')
 
 def safe_strptime(date_string):
     for fmt in ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%SZ']:
